@@ -1,12 +1,33 @@
 import logging
 import uuid
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
 from app.core.embeddings import create_embedding
 from app.core.llm import extract_memory
 from app.db.session import AsyncSessionLocal
 from app.models.memory import Memory
 
 logger = logging.getLogger(__name__)
+
+
+async def search_memories(
+    db: AsyncSession, character_id: uuid.UUID, query_embedding: list[float]
+) -> list[Memory]:
+    """캐릭터의 Memory를 코사인 유사도로 검색한다 (fact/event 구분 없이 함께 검색)."""
+    distance = Memory.embedding.cosine_distance(query_embedding)
+    max_distance = 1 - settings.MEMORY_SEARCH_SIMILARITY_THRESHOLD
+
+    result = await db.execute(
+        select(Memory)
+        .where(Memory.character_id == character_id)
+        .where(distance <= max_distance)
+        .order_by(distance)
+        .limit(settings.MEMORY_SEARCH_TOP_K)
+    )
+    return list(result.scalars().all())
 
 
 async def process_memory_extraction(
@@ -30,6 +51,7 @@ async def process_memory_extraction(
                     memory_type=result.type,
                     emotion=result.emotion,
                     importance=result.importance if result.importance is not None else 0.5,
+                    entities=result.entities,
                 )
             )
             await db.commit()

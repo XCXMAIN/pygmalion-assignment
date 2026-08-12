@@ -5,13 +5,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.embeddings import create_embedding
 from app.core.llm import generate_reply
 from app.core.prompts import build_system_prompt
 from app.db.session import get_db
 from app.models.character import Character
 from app.models.message import Message
 from app.schemas.message import ChatRequest, ChatResponse, MessageRead
-from app.services.memory import process_memory_extraction
+from app.services.memory import process_memory_extraction, search_memories
 
 router = APIRouter(tags=["chat"])
 
@@ -47,7 +48,10 @@ async def chat(
     )
     recent_messages = list(reversed(result.scalars().all()))
 
-    system_prompt = build_system_prompt(character)
+    query_embedding = await create_embedding(payload.message)
+    memories = await search_memories(db, character_id, query_embedding)
+
+    system_prompt = build_system_prompt(character, memories)
     history = [{"role": m.role, "content": m.content} for m in recent_messages]
     history.append({"role": "user", "content": payload.message})
 

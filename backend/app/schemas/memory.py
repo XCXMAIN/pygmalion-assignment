@@ -5,7 +5,13 @@ from pydantic import BaseModel, Field
 
 class MemoryExtractionResult(BaseModel):
     should_remember: bool
-    memory: str | None = Field(default=None, description="기억할 내용을 유저 시점 3인칭으로 서술한 문장")
+    memory: str | None = Field(
+        default=None,
+        description="유저 시점 3인칭 사실 서술 ('유저는 ~다'), 20~40자 내외 한 문장. 감정 뉘앙스는 넣지 않음",
+    )
     type: Literal["fact", "event"] | None = None
     emotion: str | None = Field(default=None, description="관련된 감정 (예: nervous, happy, tired)")
     importance: float | None = Field(default=None, ge=0, le=1)
+    entities: list[str] | None = Field(
+        default=None, description="memory에서 뽑은 핵심 키워드 1~3개"
+    )

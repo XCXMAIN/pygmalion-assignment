@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy import ARRAY, DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +25,7 @@ class Memory(Base):
     memory_type: Mapped[str] = mapped_column(String(20))
     emotion: Mapped[str | None] = mapped_column(String(50), nullable=True)
     importance: Mapped[float] = mapped_column(Float)
+    entities: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True)
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

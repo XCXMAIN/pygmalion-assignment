@@ -1,4 +1,5 @@
 from app.models.character import Character
+from app.models.memory import Memory
 
 STAGE_LABELS = {
     "stranger": "처음 만난 사이",
@@ -15,7 +16,7 @@ STAGE_INSTRUCTIONS = {
 }
 
 
-def build_system_prompt(character: Character) -> str:
+def build_system_prompt(character: Character, memories: list[Memory] | None = None) -> str:
     tags = ", ".join(character.personality_tags)
     formality = character.speech_style["formality"]
     emoji_note = "이모티콘을 자연스럽게 섞어서 사용하세요." if character.speech_style["use_emoji"] else "이모티콘은 사용하지 않습니다."
@@ -34,6 +35,14 @@ def build_system_prompt(character: Character) -> str:
         lines.append(f"추가 설정: {character.custom_description}")
 
     lines.append(f"현재 관계 단계는 '{stage_label}'입니다. {stage_instruction}")
+
+    if memories:
+        memory_lines = "\n".join(f"- {m.text}" for m in memories)
+        lines.append(
+            "다음은 유저에 대해 기억하고 있는 내용입니다. 관련이 있을 때만 자연스럽게 "
+            f"대화에 녹여서 언급하세요. 기억을 나열하거나 목록처럼 말하지 마세요:\n{memory_lines}"
+        )
+
     lines.append("항상 이 성격과 말투, 관계 단계에 맞는 태도를 유지하며 대화하세요.")
 
     return "\n".join(lines)
@@ -54,6 +63,12 @@ should_remember는 false여야 합니다.
 - "ㅋㅋㅋ", "ㅇㅇ", "오키" 같은 의미 없는 리액션이나 짧은 감탄사
 - 단순 인사, 잡담으로 유저 발화 자체에는 아무 새로운 정보도 담겨 있지 않은 경우
 
-should_remember가 true이면 memory는 유저 시점 3인칭 서술형 문장("유저는 ~")으로 작성하고,
-type은 fact 또는 event, emotion은 관련 감정을 영어 소문자 단어로, importance는 0~1 사이 중요도로 채우세요.
+should_remember가 true이면 다음 규칙으로 필드를 채우세요:
+- memory: "유저는 ~다" 형태의 3인칭 사실 서술로, 20~40자 내외의 한 문장으로 압축하세요. 감정적 뉘앙스나 어조는
+  memory 텍스트에 넣지 말고 사실만 담으세요 (감정은 emotion 필드에만 담습니다).
+- type: fact 또는 event
+- emotion: 관련된 감정을 영어 소문자 단어로 (예: nervous, happy, tired)
+- importance: 0~1 사이의 중요도
+- entities: memory 문장에서 뽑은 핵심 키워드 1~3개 (명사 위주 짧은 단어/구, 예: ["면접", "이직"])
+
 should_remember가 false이면 나머지 필드는 모두 null로 두세요."""
