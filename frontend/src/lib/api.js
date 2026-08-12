@@ -26,3 +26,14 @@ export function getCharacter(characterId) {
 export function listCharacters(userId) {
   return request(`/api/characters?user_id=${userId}`)
 }
+
+export function getMessages(characterId) {
+  return request(`/api/characters/${characterId}/messages`)
+}
+
+export function sendMessage(characterId, message) {
+  return request(`/api/characters/${characterId}/chat`, {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  })
+}

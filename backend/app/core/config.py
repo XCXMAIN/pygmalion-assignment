@@ -13,6 +13,10 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
+    OPENAI_CHAT_MODEL: str = "gpt-4o-mini"
+
+    # 최근 대화 컨텍스트로 포함할 메시지 개수 (user+assistant 합산, 약 10턴)
+    RECENT_CONTEXT_MESSAGES: int = 20
 
 
 settings = Settings()
