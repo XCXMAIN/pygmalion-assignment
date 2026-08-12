@@ -1,0 +1,10 @@
+# Backend
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.env
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
