@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +11,7 @@ from app.db.session import get_db
 from app.models.character import Character
 from app.models.message import Message
 from app.schemas.message import ChatRequest, ChatResponse, MessageRead
+from app.services.memory import process_memory_extraction
 
 router = APIRouter(tags=["chat"])
 
@@ -29,7 +30,10 @@ async def list_messages(
 
 @router.post("/characters/{character_id}/chat", response_model=ChatResponse)
 async def chat(
-    character_id: uuid.UUID, payload: ChatRequest, db: AsyncSession = Depends(get_db)
+    character_id: uuid.UUID,
+    payload: ChatRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
 ) -> ChatResponse:
     character = await db.get(Character, character_id)
     if character is None:
@@ -56,5 +60,9 @@ async def chat(
         ]
     )
     await db.commit()
+
+    background_tasks.add_task(
+        process_memory_extraction, character_id, payload.message, reply_text
+    )
 
     return ChatResponse(message=reply_text, relationship_stage=character.relationship_stage)
