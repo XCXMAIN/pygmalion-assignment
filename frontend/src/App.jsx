@@ -1,32 +1,31 @@
 import { useEffect, useState } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import './App.css'
+import { listCharacters } from './lib/api'
+import { getUserId } from './lib/user'
+import CharacterCreatePage from './pages/CharacterCreatePage'
+import ChatPage from './pages/ChatPage'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
-
-function App() {
-  const [health, setHealth] = useState(null)
-  const [error, setError] = useState(null)
+function HomePage() {
+  const [existingCharacterId, setExistingCharacterId] = useState(undefined)
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/health/db`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json()
-      })
-      .then(setHealth)
-      .catch((err) => setError(err.message))
+    listCharacters(getUserId())
+      .then((characters) => setExistingCharacterId(characters[0]?.character_id ?? null))
+      .catch(() => setExistingCharacterId(null))
   }, [])
 
+  if (existingCharacterId === undefined) return null
+  if (existingCharacterId) return <Navigate to={`/chat/${existingCharacterId}`} replace />
+  return <CharacterCreatePage />
+}
+
+function App() {
   return (
-    <section id="center">
-      <h1>AI 연인 서비스</h1>
-      <p>Frontend ↔ Backend 연결 확인</p>
-      {error && <p style={{ color: 'crimson' }}>연결 실패: {error}</p>}
-      {!error && !health && <p>백엔드 확인 중...</p>}
-      {health && (
-        <pre>{JSON.stringify(health, null, 2)}</pre>
-      )}
-    </section>
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/chat/:characterId" element={<ChatPage />} />
+    </Routes>
   )
 }
 

@@ -20,6 +20,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Verify DB connectivity and ensure the pgvector extension is enabled."""
+    """Verify DB connectivity, enable pgvector, and create tables."""
+    import app.models  # noqa: F401  registers models on Base.metadata
+
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await conn.run_sync(Base.metadata.create_all)
