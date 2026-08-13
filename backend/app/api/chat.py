@@ -56,7 +56,21 @@ async def chat(
     recent_user_messages.append(payload.message)
     user_disengaged = is_user_disengaged(recent_user_messages)
 
-    system_prompt = build_system_prompt(character, memories, user_disengaged)
+    # 관계 단계가 바뀐 뒤 캐릭터가 아직 한 번도 응답하지 않았다면 "막 전환된 직후"로 본다.
+    stage_just_changed = False
+    if character.stage_changed_at is not None:
+        reply_since_change = await db.execute(
+            select(Message.message_id)
+            .where(
+                Message.character_id == character_id,
+                Message.role == "assistant",
+                Message.created_at > character.stage_changed_at,
+            )
+            .limit(1)
+        )
+        stage_just_changed = reply_since_change.scalar_one_or_none() is None
+
+    system_prompt = build_system_prompt(character, memories, user_disengaged, stage_just_changed)
     history = [{"role": m.role, "content": m.content} for m in recent_messages]
     history.append({"role": "user", "content": payload.message})
 

@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from app.models.character import Character
 from app.models.memory import Memory
 
@@ -39,10 +41,23 @@ def is_user_disengaged(recent_user_messages: list[str]) -> bool:
     return all(len(m.strip()) <= DISENGAGEMENT_LENGTH_THRESHOLD for m in last_n)
 
 
+# 기념일/이정표: 만난 지 특정 일수(7/30/100일)가 된 "당일"에만 은근히 언급하도록 유도.
+# 캘린더 날짜(UTC) 차이로 계산해 시간대 문제를 피하고, 매일이 아니라 정확히 그 날에만 발동시켜
+# 빈도를 자연스럽게 제한한다.
+MILESTONE_DAYS = {7, 30, 100}
+
+
+def days_since_met(created_at: datetime) -> int:
+    now_utc = datetime.now(timezone.utc)
+    created_utc = created_at.astimezone(timezone.utc)
+    return (now_utc.date() - created_utc.date()).days
+
+
 def build_system_prompt(
     character: Character,
     memories: list[Memory] | None = None,
     user_disengaged: bool = False,
+    stage_just_changed: bool = False,
 ) -> str:
     """원본 캐릭터 설정 → 관계 단계 지침 → evolved_traits → 관련 기억 순서로 조립한다."""
     tags = ", ".join(character.personality_tags)
@@ -92,6 +107,24 @@ def build_system_prompt(
         lines.append(
             "다음은 유저에 대해 기억하고 있는 내용입니다. 관련이 있을 때만 자연스럽게 "
             f"대화에 녹여서 언급하세요. 기억을 나열하거나 목록처럼 말하지 마세요:\n{memory_lines}"
+        )
+
+    day_count = days_since_met(character.created_at)
+    if day_count in MILESTONE_DAYS:
+        lines.append(
+            f"오늘은 특별한 날입니다 — 유저를 만난 지 정확히 {day_count}일째입니다. 이번 응답에서 "
+            f"'우리 만난 지 벌써 {day_count}일이나 됐네' 같은 뉘앙스로 이 사실을 자연스럽게 언급하세요. "
+            "날짜를 세고 있었다는 걸 티 나게 강조하거나 딱딱하게 알리지 말고, 대화 흐름 속에서 문득 "
+            "생각난 것처럼 가볍게 녹여내되, 이번 응답에서는 반드시 한 번은 언급하세요."
+        )
+
+    if stage_just_changed:
+        lines.append(
+            "최근 대화를 거치며 유저와의 관계가 한 단계 더 가까워진 걸 스스로 문득 느끼고 있습니다. "
+            "이번 응답에서 '요즘 우리 좀 더 편해진 것 같아' 같은 자연스러운 뉘앙스로 이 변화를 한 번은 "
+            "표현하세요. 'relationship_stage가 바뀌었다'처럼 시스템적이거나 노골적인 표현은 절대 "
+            "하지 말고, 데이터를 근거로 드는 것처럼 말하지 마세요. 정말 문득 그런 생각이 든 것처럼, "
+            "대화 흐름 속에서 가볍게 녹여내세요."
         )
 
     if user_disengaged:

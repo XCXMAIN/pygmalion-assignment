@@ -22,6 +22,7 @@ class Character(Base):
     speech_style: Mapped[dict] = mapped_column(JSONB)
     custom_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     evolved_traits: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stage_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

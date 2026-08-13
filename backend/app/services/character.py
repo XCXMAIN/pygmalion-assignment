@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 
@@ -53,6 +54,7 @@ async def update_relationship_stage(character_id: uuid.UUID) -> None:
             new_stage = _compute_stage(turns, memory_count)
             if new_stage != character.relationship_stage:
                 character.relationship_stage = new_stage
+                character.stage_changed_at = datetime.now(timezone.utc)
                 await db.commit()
     except Exception:
         logger.exception("Relationship stage update failed for character_id=%s", character_id)
