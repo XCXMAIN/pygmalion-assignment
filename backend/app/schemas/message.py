@@ -9,8 +9,14 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
 
 
+class ChatReplySegments(BaseModel):
+    messages: list[str] = Field(
+        description="카톡처럼 순차적으로 보여줄 짧은 메시지 조각들 (보통 1~2개, 많아도 3개)"
+    )
+
+
 class ChatResponse(BaseModel):
-    message: str
+    messages: list[str]
     relationship_stage: str
 
 

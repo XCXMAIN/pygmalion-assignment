@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
@@ -55,18 +56,28 @@ async def chat(
     history = [{"role": m.role, "content": m.content} for m in recent_messages]
     history.append({"role": "user", "content": payload.message})
 
-    reply_text = await generate_reply(system_prompt, history)
+    reply_segments = await generate_reply(system_prompt, history)
 
+    # 세그먼트를 같은 트랜잭션에서 저장하면 DB의 now()가 동일해질 수 있어 순서가
+    # 보장되지 않으므로, 밀리초 단위로 증가하는 timestamp를 직접 부여한다.
+    now = datetime.now(timezone.utc)
+    db.add(Message(character_id=character_id, role="user", content=payload.message, created_at=now))
     db.add_all(
         [
-            Message(character_id=character_id, role="user", content=payload.message),
-            Message(character_id=character_id, role="assistant", content=reply_text),
+            Message(
+                character_id=character_id,
+                role="assistant",
+                content=segment,
+                created_at=now + timedelta(milliseconds=i + 1),
+            )
+            for i, segment in enumerate(reply_segments)
         ]
     )
     await db.commit()
 
+    reply_text_for_extraction = " ".join(reply_segments)
     background_tasks.add_task(
-        process_memory_extraction, character_id, payload.message, reply_text
+        process_memory_extraction, character_id, payload.message, reply_text_for_extraction
     )
 
-    return ChatResponse(message=reply_text, relationship_stage=character.relationship_stage)
+    return ChatResponse(messages=reply_segments, relationship_stage=character.relationship_stage)

@@ -1,20 +1,31 @@
 from openai import AsyncOpenAI
 
 from app.core.config import settings
-from app.core.prompts import EVOLVED_TRAITS_SYSTEM_PROMPT, MEMORY_EXTRACTION_SYSTEM_PROMPT
+from app.core.prompts import (
+    EVOLVED_TRAITS_SYSTEM_PROMPT,
+    MEMORY_EXTRACTION_SYSTEM_PROMPT,
+    MESSAGE_SPLIT_INSTRUCTION,
+)
 from app.schemas.memory import MemoryExtractionResult
+from app.schemas.message import ChatReplySegments
 
 _client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 
-async def generate_reply(system_prompt: str, history: list[dict[str, str]]) -> str:
-    response = await _client.chat.completions.create(
+async def generate_reply(system_prompt: str, history: list[dict[str, str]]) -> list[str]:
+    completion = await _client.beta.chat.completions.parse(
         model=settings.OPENAI_CHAT_MODEL,
-        messages=[{"role": "system", "content": system_prompt}, *history],
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": MESSAGE_SPLIT_INSTRUCTION},
+            *history,
+        ],
+        response_format=ChatReplySegments,
         temperature=0.9,
         max_tokens=400,
     )
-    return response.choices[0].message.content
+    segments = [s.strip() for s in completion.choices[0].message.parsed.messages if s and s.strip()]
+    return segments[:3] if segments else [completion.choices[0].message.content or ""]
 
 
 async def extract_memory(user_message: str, assistant_message: str) -> MemoryExtractionResult:
