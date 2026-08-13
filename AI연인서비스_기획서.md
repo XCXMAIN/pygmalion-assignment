@@ -98,6 +98,31 @@ stage_instructions = {
 }
 ```
 
+### evolved_traits — 유저별로 달라지는 성격 표현 (신규 추가, 6단계)
+
+`relationship_stage`가 "관계가 얼마나 가까운가"를 나타낸다면, `evolved_traits`는 "이 유저와의 관계에서 캐릭터가
+구체적으로 어떤 모습을 보이는가"를 나타낸다. 같은 `personality_tags`로 생성된 캐릭터라도, 대화 상대인 유저가 어떤
+사람인지(취향, 습관 등 `fact` Memory)에 따라 캐릭터가 그 유저에게 보여주는 결이 조금씩 달라지도록 하는 장치다.
+
+**갱신 조건**
+- `memory_type`이 `fact`인 Memory 개수가 3의 배수(3, 6, 9, …)에 도달할 때마다 갱신
+- 응답 생성 후 Memory 저장과 마찬가지로 Background Task에서 처리 (응답 속도에 영향 없음)
+
+**갱신 방식 (누적 계승, 완전 대체 아님)**
+- 기존 `evolved_traits`(있다면)와 그동안 쌓인 fact 전체를 LLM에게 함께 제공
+- "기존 특성을 급격히 뒤집지 말고, 점진적으로 다듬거나 새로운 면을 추가하는 방식으로, 원본 `personality_tags` 틀
+  안에서 1~2문장으로 다시 정리"하도록 요청
+- 즉 매번 새로 만드는 것이 아니라 이전 결과 위에 조금씩 덧붙여 나가는 구조
+
+**System Prompt 반영 순서**
+
+```
+원본 캐릭터 설정 (personality_tags, relationship_type, speech_style, custom_description)
+  → 현재 relationship_stage 지침
+  → evolved_traits ("이 유저와는 다음과 같은 모습을 보입니다: ...")
+  → 관련 Memory (RAG 검색 결과)
+```
+
 ---
 
 ## 4. Memory 시스템
@@ -227,6 +252,7 @@ relationship_type       # 초기 관계 설정
 relationship_stage      # stranger/acquaintance/close/lover, 현재 단계
 speech_style
 custom_description
+evolved_traits           # (신규) 이 유저와의 관계에서 드러나는 특성, fact Memory 3배수마다 누적 갱신 — 3장 참고
 created_at
 ```
 

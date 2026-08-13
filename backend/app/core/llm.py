@@ -1,7 +1,7 @@
 from openai import AsyncOpenAI
 
 from app.core.config import settings
-from app.core.prompts import MEMORY_EXTRACTION_SYSTEM_PROMPT
+from app.core.prompts import EVOLVED_TRAITS_SYSTEM_PROMPT, MEMORY_EXTRACTION_SYSTEM_PROMPT
 from app.schemas.memory import MemoryExtractionResult
 
 _client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -30,3 +30,24 @@ async def extract_memory(user_message: str, assistant_message: str) -> MemoryExt
         response_format=MemoryExtractionResult,
     )
     return completion.choices[0].message.parsed
+
+
+async def generate_evolved_traits(
+    personality_tags: list[str], existing_traits: str | None, facts: list[str]
+) -> str:
+    fact_lines = "\n".join(f"- {f}" for f in facts)
+    user_content = (
+        f"원본 성격: {', '.join(personality_tags)}\n"
+        f"기존 특성 요약: {existing_traits or '(아직 없음)'}\n"
+        f"지금까지 이 유저에 대해 쌓인 fact:\n{fact_lines}"
+    )
+    response = await _client.chat.completions.create(
+        model=settings.OPENAI_CHAT_MODEL,
+        messages=[
+            {"role": "system", "content": EVOLVED_TRAITS_SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ],
+        temperature=0.7,
+        max_tokens=200,
+    )
+    return response.choices[0].message.content.strip()

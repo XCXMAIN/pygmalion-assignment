@@ -9,6 +9,7 @@ from app.core.embeddings import create_embedding
 from app.core.llm import extract_memory
 from app.db.session import AsyncSessionLocal
 from app.models.memory import Memory
+from app.services.character import maybe_update_evolved_traits, update_relationship_stage
 
 logger = logging.getLogger(__name__)
 
@@ -33,27 +34,32 @@ async def search_memories(
 async def process_memory_extraction(
     character_id: uuid.UUID, user_message: str, assistant_message: str
 ) -> None:
-    """Background task: extract a memory from one conversation turn and store it."""
+    """Background task: extract a memory from one conversation turn, store it, then
+    chain the evolved_traits / relationship_stage updates that depend on it."""
     try:
         result = await extract_memory(user_message, assistant_message)
 
-        if not result.should_remember or not result.memory:
-            return
+        if result.should_remember and result.memory:
+            embedding = await create_embedding(result.memory)
 
-        embedding = await create_embedding(result.memory)
-
-        async with AsyncSessionLocal() as db:
-            db.add(
-                Memory(
-                    character_id=character_id,
-                    text=result.memory,
-                    embedding=embedding,
-                    memory_type=result.type,
-                    emotion=result.emotion,
-                    importance=result.importance if result.importance is not None else 0.5,
-                    entities=result.entities,
+            async with AsyncSessionLocal() as db:
+                db.add(
+                    Memory(
+                        character_id=character_id,
+                        text=result.memory,
+                        embedding=embedding,
+                        memory_type=result.type,
+                        emotion=result.emotion,
+                        importance=result.importance if result.importance is not None else 0.5,
+                        entities=result.entities,
+                    )
                 )
-            )
-            await db.commit()
+                await db.commit()
+
+            if result.type == "fact":
+                await maybe_update_evolved_traits(character_id)
     except Exception:
         logger.exception("Memory extraction failed for character_id=%s", character_id)
+
+    # 이번 턴에 새 memory가 저장되지 않았어도 turns 카운트는 늘었으므로 항상 체크한다.
+    await update_relationship_stage(character_id)

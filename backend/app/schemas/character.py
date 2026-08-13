@@ -30,4 +30,5 @@ class CharacterRead(BaseModel):
     relationship_stage: str
     speech_style: SpeechStyle
     custom_description: str | None
+    evolved_traits: str | None
     created_at: datetime

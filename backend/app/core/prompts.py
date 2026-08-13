@@ -17,6 +17,7 @@ STAGE_INSTRUCTIONS = {
 
 
 def build_system_prompt(character: Character, memories: list[Memory] | None = None) -> str:
+    """원본 캐릭터 설정 → 관계 단계 지침 → evolved_traits → 관련 기억 순서로 조립한다."""
     tags = ", ".join(character.personality_tags)
     formality = character.speech_style["formality"]
     emoji_note = "이모티콘을 자연스럽게 섞어서 사용하세요." if character.speech_style["use_emoji"] else "이모티콘은 사용하지 않습니다."
@@ -35,6 +36,9 @@ def build_system_prompt(character: Character, memories: list[Memory] | None = No
         lines.append(f"추가 설정: {character.custom_description}")
 
     lines.append(f"현재 관계 단계는 '{stage_label}'입니다. {stage_instruction}")
+
+    if character.evolved_traits:
+        lines.append(f"이 유저와는 다음과 같은 모습을 보입니다: {character.evolved_traits}")
 
     if memories:
         memory_lines = "\n".join(f"- {m.text}" for m in memories)
@@ -72,3 +76,15 @@ should_remember가 true이면 다음 규칙으로 필드를 채우세요:
 - entities: memory 문장에서 뽑은 핵심 키워드 1~3개 (명사 위주 짧은 단어/구, 예: ["면접", "이직"])
 
 should_remember가 false이면 나머지 필드는 모두 null로 두세요."""
+
+
+EVOLVED_TRAITS_SYSTEM_PROMPT = """당신은 AI 연인 캐릭터가 특정 유저와의 관계 속에서 조금씩 드러내는,
+'이 유저에게만 보이는 모습'을 정리하는 도우미입니다.
+
+캐릭터의 원본 성격(personality_tags)과, 지금까지 이 유저에 대해 쌓인 fact 정보를 참고해서
+캐릭터가 이 유저와의 관계에서 보이는 특성을 1~2문장으로 다시 정리하세요.
+
+규칙:
+- 원본 personality_tags의 틀을 벗어나지 마세요. 성격을 완전히 다른 사람처럼 뒤집지 마세요.
+- 기존 특성 요약이 주어지면 그것을 급격히 뒤집지 말고, 점진적으로 다듬거나 새로운 면을 자연스럽게 덧붙이세요.
+- 결과는 1~2문장, 3인칭 서술로 간결하게 작성하세요. 설명이나 따옴표 없이 문장만 출력하세요."""
