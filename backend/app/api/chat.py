@@ -1,6 +1,8 @@
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import openai
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +17,13 @@ from app.models.message import Message
 from app.schemas.message import ChatRequest, ChatResponse, MessageRead
 from app.services.memory import process_memory_extraction, search_memories
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["chat"])
+
+# LLM/임베딩 API가 실패했을 때(타임아웃, rate limit, 키 오류 등) 500을 그대로 던지는 대신
+# 보여줄 자연스러운 안내 메시지.
+LLM_FAILURE_FALLBACK = "지금 살짝 연결이 불안정해... 다시 한 번 말해줄래?"
 
 
 @router.get("/characters/{character_id}/messages", response_model=list[MessageRead])
@@ -49,32 +57,38 @@ async def chat(
     )
     recent_messages = list(reversed(result.scalars().all()))
 
-    query_embedding = await create_embedding(payload.message)
-    memories = await search_memories(db, character_id, query_embedding)
+    try:
+        query_embedding = await create_embedding(payload.message)
+        memories = await search_memories(db, character_id, query_embedding)
 
-    recent_user_messages = [m.content for m in recent_messages if m.role == "user"]
-    recent_user_messages.append(payload.message)
-    user_disengaged = is_user_disengaged(recent_user_messages)
+        recent_user_messages = [m.content for m in recent_messages if m.role == "user"]
+        recent_user_messages.append(payload.message)
+        user_disengaged = is_user_disengaged(recent_user_messages)
 
-    # 관계 단계가 바뀐 뒤 캐릭터가 아직 한 번도 응답하지 않았다면 "막 전환된 직후"로 본다.
-    stage_just_changed = False
-    if character.stage_changed_at is not None:
-        reply_since_change = await db.execute(
-            select(Message.message_id)
-            .where(
-                Message.character_id == character_id,
-                Message.role == "assistant",
-                Message.created_at > character.stage_changed_at,
+        # 관계 단계가 바뀐 뒤 캐릭터가 아직 한 번도 응답하지 않았다면 "막 전환된 직후"로 본다.
+        stage_just_changed = False
+        if character.stage_changed_at is not None:
+            reply_since_change = await db.execute(
+                select(Message.message_id)
+                .where(
+                    Message.character_id == character_id,
+                    Message.role == "assistant",
+                    Message.created_at > character.stage_changed_at,
+                )
+                .limit(1)
             )
-            .limit(1)
-        )
-        stage_just_changed = reply_since_change.scalar_one_or_none() is None
+            stage_just_changed = reply_since_change.scalar_one_or_none() is None
 
-    system_prompt = build_system_prompt(character, memories, user_disengaged, stage_just_changed)
-    history = [{"role": m.role, "content": m.content} for m in recent_messages]
-    history.append({"role": "user", "content": payload.message})
+        system_prompt = build_system_prompt(character, memories, user_disengaged, stage_just_changed)
+        history = [{"role": m.role, "content": m.content} for m in recent_messages]
+        history.append({"role": "user", "content": payload.message})
 
-    reply_segments = await generate_reply(system_prompt, history)
+        reply_segments = await generate_reply(system_prompt, history)
+    except openai.OpenAIError:
+        # 타임아웃/rate limit/키 오류 등 OpenAI API 쪽 실패는 500으로 죽이지 않고
+        # 자연스러운 안내 메시지로 응답해 대화 흐름 자체는 끊기지 않게 한다.
+        logger.exception("LLM/임베딩 API 호출 실패, character_id=%s", character_id)
+        reply_segments = [LLM_FAILURE_FALLBACK]
 
     # 세그먼트를 같은 트랜잭션에서 저장하면 DB의 now()가 동일해질 수 있어 순서가
     # 보장되지 않으므로, 밀리초 단위로 증가하는 timestamp를 직접 부여한다.

@@ -1,3 +1,5 @@
+import logging
+
 from openai import AsyncOpenAI
 
 from app.core.config import settings
@@ -8,6 +10,8 @@ from app.core.prompts import (
 )
 from app.schemas.memory import MemoryExtractionResult
 from app.schemas.message import ChatReplySegments
+
+logger = logging.getLogger(__name__)
 
 _client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
@@ -34,6 +38,7 @@ async def generate_reply(system_prompt: str, history: list[dict[str, str]]) -> l
     if message.parsed is not None:
         segments = [s.strip() for s in message.parsed.messages if s and s.strip()]
     else:
+        logger.warning("generate_reply: structured output parsed=None, history_len=%d, falling back", len(history))
         fallback_text = message.content or getattr(message, "refusal", None) or ""
         segments = [fallback_text.strip()] if fallback_text.strip() else []
     return segments[:3] if segments else ["음... 잠깐만."]
@@ -53,7 +58,10 @@ async def extract_memory(user_message: str, assistant_message: str) -> MemoryExt
     )
     parsed = completion.choices[0].message.parsed
     # generate_reply와 동일한 이유로 parsed가 None일 수 있다. 이 경우 안전하게 기억하지 않음으로 처리.
-    return parsed if parsed is not None else MemoryExtractionResult(should_remember=False)
+    if parsed is None:
+        logger.warning("extract_memory: structured output parsed=None, falling back to should_remember=False")
+        return MemoryExtractionResult(should_remember=False)
+    return parsed
 
 
 async def generate_evolved_traits(
