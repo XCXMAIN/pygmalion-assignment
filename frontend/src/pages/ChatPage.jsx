@@ -9,12 +9,26 @@ const STAGE_LABELS = {
   lover: '연인',
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function randomDelay(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+// 응답이 너무 빨리 와도 타이핑 표시가 스쳐 지나가지 않도록 두는 최소 노출 시간
+const TYPING_MIN_MS = 600
+const SEGMENT_GAP_MIN_MS = 500
+const SEGMENT_GAP_MAX_MS = 1500
+
 export default function ChatPage() {
   const { characterId } = useParams()
   const [character, setCharacter] = useState(null)
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const [typing, setTyping] = useState(false)
   const [error, setError] = useState(null)
   const bottomRef = useRef(null)
 
@@ -39,22 +53,39 @@ export default function ChatPage() {
     setError(null)
     setDraft('')
     setSending(true)
+    setTyping(true)
     setMessages((prev) => [
       ...prev,
       { message_id: `local-${Date.now()}`, role: 'user', content: text },
     ])
 
     try {
+      const requestStartedAt = Date.now()
       const res = await sendMessage(characterId, text)
-      setMessages((prev) => [
-        ...prev,
-        { message_id: `local-reply-${Date.now()}`, role: 'assistant', content: res.message },
-      ])
+
+      const elapsed = Date.now() - requestStartedAt
+      if (elapsed < TYPING_MIN_MS) await sleep(TYPING_MIN_MS - elapsed)
+
+      for (let i = 0; i < res.messages.length; i++) {
+        if (i > 0) {
+          setTyping(true)
+          await sleep(randomDelay(SEGMENT_GAP_MIN_MS, SEGMENT_GAP_MAX_MS))
+        }
+        setTyping(false)
+        setMessages((prev) => [
+          ...prev,
+          { message_id: `local-reply-${Date.now()}-${i}`, role: 'assistant', content: res.messages[i] },
+        ])
+        // 메시지가 막 도착한 뒤 실제로 잠깐 멈춰야, 다음 반복의 setTyping(true)가 방금 호출한
+        // setTyping(false)와 같은 렌더에 배칭되어 "꺼짐"이 화면에 반영되지 않는 문제를 막을 수 있다.
+        if (i < res.messages.length - 1) await sleep(150)
+      }
       setCharacter((prev) => ({ ...prev, relationship_stage: res.relationship_stage }))
     } catch (err) {
       setError(err.message)
     } finally {
       setSending(false)
+      setTyping(false)
     }
   }
 
@@ -91,10 +122,16 @@ export default function ChatPage() {
             <p className="message-bubble">{m.content}</p>
           </div>
         ))}
-        {sending && (
+        {typing && (
           <div className="message-row assistant">
             <span className="message-sender">{character.name}</span>
-            <p className="message-bubble typing">...</p>
+            <p className="message-bubble typing-bubble">
+              <span className="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+            </p>
           </div>
         )}
         <div ref={bottomRef} />
