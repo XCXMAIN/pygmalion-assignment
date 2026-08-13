@@ -16,16 +16,27 @@ async def generate_reply(system_prompt: str, history: list[dict[str, str]]) -> l
     completion = await _client.beta.chat.completions.parse(
         model=settings.OPENAI_CHAT_MODEL,
         messages=[
-            {"role": "system", "content": system_prompt},
+            # 출력 형식(세그먼트 분할) 지침을 먼저 두고, 대화 내용/톤을 결정하는 페르소나
+            # 지침(질문·공감 비율 포함)을 history 바로 앞에 둬서 우선순위가 흐려지지 않게 한다.
             {"role": "system", "content": MESSAGE_SPLIT_INSTRUCTION},
+            {"role": "system", "content": system_prompt},
             *history,
         ],
         response_format=ChatReplySegments,
         temperature=0.9,
         max_tokens=400,
     )
-    segments = [s.strip() for s in completion.choices[0].message.parsed.messages if s and s.strip()]
-    return segments[:3] if segments else [completion.choices[0].message.content or ""]
+    message = completion.choices[0].message
+    # 히스토리가 길어질수록(실측 20턴 안팎에서 최대 ~50%) parsed가 None으로 오는 경우가 늘어난다.
+    # 이때 message.refusal에 실제로 정상적인 대화 텍스트가 담겨 오는 것을 확인했다 (안전 관련
+    # 거부가 아님 — OpenAI structured output의 알려진 신뢰성 이슈로 보임). content → refusal
+    # 순으로 폴백해서, 값이 있는데도 의미 없는 플레이스홀더가 나가는 일이 없도록 한다.
+    if message.parsed is not None:
+        segments = [s.strip() for s in message.parsed.messages if s and s.strip()]
+    else:
+        fallback_text = message.content or getattr(message, "refusal", None) or ""
+        segments = [fallback_text.strip()] if fallback_text.strip() else []
+    return segments[:3] if segments else ["음... 잠깐만."]
 
 
 async def extract_memory(user_message: str, assistant_message: str) -> MemoryExtractionResult:
@@ -40,7 +51,9 @@ async def extract_memory(user_message: str, assistant_message: str) -> MemoryExt
         ],
         response_format=MemoryExtractionResult,
     )
-    return completion.choices[0].message.parsed
+    parsed = completion.choices[0].message.parsed
+    # generate_reply와 동일한 이유로 parsed가 None일 수 있다. 이 경우 안전하게 기억하지 않음으로 처리.
+    return parsed if parsed is not None else MemoryExtractionResult(should_remember=False)
 
 
 async def generate_evolved_traits(
