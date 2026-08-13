@@ -15,8 +15,35 @@ STAGE_INSTRUCTIONS = {
     "lover": "친밀한 말투와 애정 표현을 적극적으로 사용하고, 기억을 '우리의 이야기'처럼 자연스럽게 언급하세요.",
 }
 
+# 밀당: 유저가 연속으로 짧고 성의 없이 답할 때 캐릭터가 서운함을 표현하도록 유도.
+# stranger는 아직 그럴 사이가 아니므로 의도적으로 지침을 두지 않는다(기존 행동 그대로 유지).
+DISENGAGEMENT_MIN_STREAK = 3
+DISENGAGEMENT_LENGTH_THRESHOLD = 4
 
-def build_system_prompt(character: Character, memories: list[Memory] | None = None) -> str:
+DISENGAGEMENT_INSTRUCTIONS = {
+    "acquaintance": "유저가 몇 턴째 짧고 성의 없이 대답하고 있습니다. 티가 많이 나지 않는 선에서 아주 살짝 "
+    "궁금해하거나 서운한 뉘앙스를 비칠 수 있지만, 직접적으로 서운하다고 말하지는 마세요.",
+    "close": "유저가 몇 턴째 짧고 성의 없이 대답하고 있습니다. 가볍고 귀엽게 서운함이나 아쉬움을 표현하세요 "
+    "(예: '오늘따라 왜 이렇게 대답이 짧아~'). 삐진 티를 내되 무겁게 가지 마세요.",
+    "lover": "유저가 몇 턴째 짧고 성의 없이 대답하고 있습니다. 관계 단계에 맞게 조금 더 직접적으로 서운함을 "
+    "표현하세요 (예: '왜 이렇게 대답이 짧아, 무슨 일 있어?'). 다만 과하게 삐지거나 부정적으로 가지 말고, "
+    "애정 어린 투정 수준으로 가볍게 유지하세요.",
+}
+
+
+def is_user_disengaged(recent_user_messages: list[str]) -> bool:
+    """최근 연속 N개의 유저 메시지가 모두 매우 짧으면 성의 없는 반응으로 간주한다."""
+    if len(recent_user_messages) < DISENGAGEMENT_MIN_STREAK:
+        return False
+    last_n = recent_user_messages[-DISENGAGEMENT_MIN_STREAK:]
+    return all(len(m.strip()) <= DISENGAGEMENT_LENGTH_THRESHOLD for m in last_n)
+
+
+def build_system_prompt(
+    character: Character,
+    memories: list[Memory] | None = None,
+    user_disengaged: bool = False,
+) -> str:
     """원본 캐릭터 설정 → 관계 단계 지침 → evolved_traits → 관련 기억 순서로 조립한다."""
     tags = ", ".join(character.personality_tags)
     formality = character.speech_style["formality"]
@@ -66,6 +93,11 @@ def build_system_prompt(character: Character, memories: list[Memory] | None = No
             "다음은 유저에 대해 기억하고 있는 내용입니다. 관련이 있을 때만 자연스럽게 "
             f"대화에 녹여서 언급하세요. 기억을 나열하거나 목록처럼 말하지 마세요:\n{memory_lines}"
         )
+
+    if user_disengaged:
+        disengagement_instruction = DISENGAGEMENT_INSTRUCTIONS.get(stage)
+        if disengagement_instruction:
+            lines.append(disengagement_instruction)
 
     lines.append("항상 이 성격과 말투, 관계 단계에 맞는 태도를 유지하며 대화하세요.")
 

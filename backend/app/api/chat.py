@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.embeddings import create_embedding
 from app.core.llm import generate_reply
-from app.core.prompts import build_system_prompt
+from app.core.prompts import build_system_prompt, is_user_disengaged
 from app.db.session import get_db
 from app.models.character import Character
 from app.models.message import Message
@@ -52,7 +52,11 @@ async def chat(
     query_embedding = await create_embedding(payload.message)
     memories = await search_memories(db, character_id, query_embedding)
 
-    system_prompt = build_system_prompt(character, memories)
+    recent_user_messages = [m.content for m in recent_messages if m.role == "user"]
+    recent_user_messages.append(payload.message)
+    user_disengaged = is_user_disengaged(recent_user_messages)
+
+    system_prompt = build_system_prompt(character, memories, user_disengaged)
     history = [{"role": m.role, "content": m.content} for m in recent_messages]
     history.append({"role": "user", "content": payload.message})
 
