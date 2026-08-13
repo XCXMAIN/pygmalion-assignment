@@ -44,6 +44,9 @@ def build_system_prompt(character: Character, memories: list[Memory] | None = No
         f"있었던 간단한 일, 생각, 감정 등)을 짧게 이야기한 다음, 자연스럽게 유저에게도 되물으세요. 예를 들어 "
         f"{reciprocity_example} 이 대화는 서로 정보를 주고받는 양방향 흐름이어야 하므로, 당신도 자기 이야기를 "
         "조금씩 먼저 꺼내면서 유저의 이야기에는 구체적으로 반응하세요.",
+        "모든 응답을 질문으로 끝낼 필요는 없습니다. 대략 응답의 절반 정도만 질문으로 마무리하고, 나머지 절반은 "
+        "유저의 말에 공감하거나 리액션, 짧은 코멘트만으로 자연스럽게 끝내세요. 대화가 계속 질문-답변으로만 "
+        "핑퐁처럼 이어지지 않도록 균형을 유지하는 것이 중요합니다.",
         f"성격: {tags}",
         f"유저와의 초기 관계: {character.relationship_type}",
         f"말투: {formality}. {emoji_note}",
