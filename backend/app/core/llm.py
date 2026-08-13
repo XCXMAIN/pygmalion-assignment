@@ -7,6 +7,7 @@ from app.core.prompts import (
     EVOLVED_TRAITS_SYSTEM_PROMPT,
     MEMORY_EXTRACTION_SYSTEM_PROMPT,
     MESSAGE_SPLIT_INSTRUCTION,
+    QUERY_EXPANSION_SYSTEM_PROMPT,
 )
 from app.schemas.memory import MemoryExtractionResult
 from app.schemas.message import ChatReplySegments
@@ -62,6 +63,20 @@ async def extract_memory(user_message: str, assistant_message: str) -> MemoryExt
         logger.warning("extract_memory: structured output parsed=None, falling back to should_remember=False")
         return MemoryExtractionResult(should_remember=False)
     return parsed
+
+
+async def expand_search_query(user_message: str) -> str:
+    """RAG 검색 직전, 유저 발화에 관련 키워드를 덧붙여 임베딩 검색용 텍스트를 만든다."""
+    response = await _client.chat.completions.create(
+        model=settings.OPENAI_CHAT_MODEL,
+        messages=[
+            {"role": "system", "content": QUERY_EXPANSION_SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
+        temperature=0.3,
+        max_tokens=80,
+    )
+    return response.choices[0].message.content.strip()
 
 
 async def generate_evolved_traits(

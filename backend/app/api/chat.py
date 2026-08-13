@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.embeddings import create_embedding
-from app.core.llm import generate_reply
+from app.core.llm import expand_search_query, generate_reply
 from app.core.prompts import build_system_prompt, is_user_disengaged
 from app.db.session import get_db
 from app.models.character import Character
@@ -58,7 +58,16 @@ async def chat(
     recent_messages = list(reversed(result.scalars().all()))
 
     try:
-        query_embedding = await create_embedding(payload.message)
+        # RAG 쿼리 확장(E): 원문을 그대로 임베딩하는 대신 관련 키워드를 덧붙여 검색 정확도를 높인다.
+        # 확장 자체가 실패해도 검색 품질만 원래 수준으로 낮아질 뿐 턴 전체가 실패할 필요는 없으므로
+        # 별도로 감싸서 원문 폴백 처리한다.
+        try:
+            search_query = await expand_search_query(payload.message)
+        except openai.OpenAIError:
+            logger.warning("쿼리 확장 실패, 원문으로 폴백. character_id=%s", character_id)
+            search_query = payload.message
+
+        query_embedding = await create_embedding(search_query)
         memories = await search_memories(db, character_id, query_embedding)
 
         recent_user_messages = [m.content for m in recent_messages if m.role == "user"]
