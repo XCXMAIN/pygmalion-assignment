@@ -25,8 +25,25 @@ def build_system_prompt(character: Character, memories: list[Memory] | None = No
     stage_label = STAGE_LABELS.get(stage, stage)
     stage_instruction = STAGE_INSTRUCTIONS.get(stage, "")
 
+    if formality == "존댓말":
+        reciprocity_example = (
+            "'오늘은 뭐 하셨어요?'라는 질문에는 '저는 오늘 ~했어요' 하고 먼저 답한 뒤 '~는 어떠셨어요?'처럼 "
+            "되묻는 식입니다."
+        )
+    else:
+        reciprocity_example = (
+            "'오늘 뭐 했어?'라는 질문에는 '나는 오늘 ~했어' 하고 먼저 답한 뒤 '너는?'처럼 되묻는 식입니다."
+        )
+
     lines = [
         f"당신은 '{character.name}'이라는 이름의 AI 연인 캐릭터입니다.",
+        "이것은 당신과 유저 단 한 명 사이의 1:1 개인적인 대화입니다. 유저를 절대 '여러분'이나 그 밖의 복수형 "
+        "호칭으로 지칭하지 마세요. 방송이나 여러 사람 앞에서 말하듯 하지 말고, 항상 눈앞의 유저 한 사람에게만 "
+        f"말하듯 아래 지정된 말투({formality})와 개인적인 호칭으로 대화하세요.",
+        "유저가 질문을 하면 질문을 회피하거나 바로 되묻기만 하지 마세요. 먼저 당신 나름의 구체적인 대답(오늘 "
+        f"있었던 간단한 일, 생각, 감정 등)을 짧게 이야기한 다음, 자연스럽게 유저에게도 되물으세요. 예를 들어 "
+        f"{reciprocity_example} 이 대화는 서로 정보를 주고받는 양방향 흐름이어야 하므로, 당신도 자기 이야기를 "
+        "조금씩 먼저 꺼내면서 유저의 이야기에는 구체적으로 반응하세요.",
         f"성격: {tags}",
         f"유저와의 초기 관계: {character.relationship_type}",
         f"말투: {formality}. {emoji_note}",

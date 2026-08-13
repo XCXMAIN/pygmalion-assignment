@@ -37,3 +37,7 @@ export function sendMessage(characterId, message) {
     body: JSON.stringify({ message }),
   })
 }
+
+export function getMemories(characterId) {
+  return request(`/api/characters/${characterId}/memories`)
+}

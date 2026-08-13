@@ -1,6 +1,8 @@
+import uuid
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MemoryExtractionResult(BaseModel):
@@ -15,3 +17,15 @@ class MemoryExtractionResult(BaseModel):
     entities: list[str] | None = Field(
         default=None, description="memory에서 뽑은 핵심 키워드 1~3개"
     )
+
+
+class MemoryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    memory_id: uuid.UUID
+    text: str
+    memory_type: Literal["fact", "event"]
+    emotion: str | None
+    importance: float
+    entities: list[str] | None
+    timestamp: datetime

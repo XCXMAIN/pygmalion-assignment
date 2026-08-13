@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { getCharacter, getMessages, sendMessage } from '../lib/api'
 
 const STAGE_LABELS = {
@@ -79,6 +79,9 @@ export default function ChatPage() {
       <header>
         <h1>{character.name}</h1>
         <p>{STAGE_LABELS[character.relationship_stage] ?? character.relationship_stage} ♡</p>
+        <Link to={`/chat/${characterId}/memories`} className="memories-link">
+          우리의 기억 보기
+        </Link>
       </header>
 
       <div className="message-list">
